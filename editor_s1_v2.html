@@ -1,0 +1,730 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#101112">
+<title>S-1 Editor</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@400;500;600&display=swap">
+<style>
+/* Disposición: cabecera fija, paneles en columnas (tablet horizontal), teclado fijo abajo. Un solo aspecto oscuro, como un panel de hardware. */
+:root{
+  --bg:#101112;--panel:#18191b;--panel2:#202124;--line:#2b2d30;--fg:#e9e7e2;--mute:#8c8f93;--accent:#ff5a1f;--ok:#6fcf8a;
+  --f-ui:"IBM Plex Sans Condensed",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --kbh:96px;color-scheme:dark;
+}
+@media (max-height:520px){:root{--kbh:72px}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--f-ui);font-size:15px;padding-inline:16px;padding-block:0 calc(var(--kbh) + 28px + env(safe-area-inset-bottom,0px))}
+header{position:sticky;top:0;z-index:5;background:var(--bg);margin-inline:-16px;padding:10px 16px 8px;border-bottom:2px solid var(--accent)}
+.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+h1{margin:0;font-size:18px;font-weight:600;letter-spacing:.02em;white-space:nowrap}
+h1 span{color:var(--accent)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.grow{flex:1}
+select,button,input[type=text]{background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:9px 11px;font:inherit;font-size:14px;min-width:0}
+button{cursor:pointer}
+button:active{background:var(--panel2)}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.pri{background:var(--accent);border-color:var(--accent);color:#120a05;font-weight:600}
+.pri:active{background:#ff7a47}
+button.tog.on{background:var(--panel2);border-color:var(--accent);color:var(--accent)}
+#st{font:400 12px var(--f-mono);color:var(--mute);margin-top:6px;line-height:1.4}
+#st.ok{color:var(--ok)}#st.err{color:#ffb38f}
+#turn{display:none;background:var(--panel2);border:1px solid var(--accent);border-radius:8px;padding:10px 12px;margin-top:14px;font-size:13px}
+@media (orientation:portrait) and (max-width:900px){#turn{display:block}}
+#cols{column-width:300px;column-gap:14px;margin-top:14px}
+#cols>section{break-inside:avoid;margin:0 0 14px}
+section{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.wide{margin-top:14px}
+h2{margin:0 0 6px;font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+.ctl{padding:8px 0;border-top:1px solid var(--line)}
+h2+.ctl,h2+.d+.ctl{border-top:0}
+.ctl label{display:flex;justify-content:space-between;gap:8px;font-size:14px;margin-bottom:4px;cursor:help}
+.ctl label small{font:400 11px var(--f-mono);color:var(--mute);margin-left:6px}
+.ctl label b{font:500 12px var(--f-mono);color:var(--accent);min-width:30px;text-align:right}
+.d{display:none;color:var(--mute);font-size:12.5px;line-height:1.45;margin:0 0 6px;max-width:68ch}
+.sd{margin-bottom:8px}
+body.help .d,.ctl.open .d{display:block}
+input[type=range]{width:100%;height:34px;margin:0;accent-color:var(--accent)}
+.seg{display:flex;gap:4px;flex-wrap:wrap}
+.seg button{flex:1 1 0;min-width:48px;padding:9px 4px;font-size:13px}
+.seg button.on{background:var(--accent);border-color:var(--accent);color:#120a05;font-weight:600}
+.hint{color:var(--mute);font-size:12px;margin-top:8px;line-height:1.45}
+/* Secuenciador */
+.sgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px 14px;margin:8px 0 12px}
+.sgrid label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mute)}
+.sgrid label b{color:var(--accent);font:500 12px var(--f-mono);float:right}
+.sgrid select{width:100%}
+.chk{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--fg)}
+.chk input{width:20px;height:20px;accent-color:var(--accent)}
+.steps{display:grid;grid-template-columns:repeat(16,1fr);gap:4px;margin-top:12px}
+@media (max-width:760px){.steps{grid-template-columns:repeat(8,1fr)}}
+.steps button{height:46px;padding:0;font:500 11px var(--f-mono);color:var(--mute);background:var(--panel2)}
+.steps button.on{background:var(--accent);border-color:var(--accent);color:#120a05;font-weight:600}
+.steps button.cur{outline:2px solid #fff;outline-offset:-2px}
+.steps button.beat{border-color:#555}
+/* Patches */
+.pt{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1.6fr) auto;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
+.pt input[type=text]{width:100%}
+.pt .nm{font-weight:600}
+.pt .acts{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+.pt .acts button{padding:8px 10px;font-size:13px}
+@media (max-width:760px){.pt{grid-template-columns:1fr}.pt .acts{justify-content:flex-start}}
+.badge{font:400 10px var(--f-mono);color:var(--mute);border:1px solid var(--line);border-radius:4px;padding:1px 5px;margin-left:6px}
+/* Teclado */
+#kbar{position:fixed;left:0;right:0;bottom:0;height:calc(var(--kbh) + env(safe-area-inset-bottom,0px));padding-bottom:env(safe-area-inset-bottom,0px);display:flex;background:#000;border-top:2px solid var(--accent);z-index:6;touch-action:none}
+#kctl{width:92px;display:flex;flex-direction:column;gap:6px;padding:6px;justify-content:center}
+#kctl button{padding:6px 0;font-size:13px}
+#kctl .lab{font:400 11px var(--f-mono);color:var(--mute);text-align:center}
+#keys{position:relative;flex:1;min-width:0}
+.k{position:absolute;touch-action:none;user-select:none;-webkit-user-select:none}
+.k.w{top:0;bottom:0;background:#dcdad4;border-right:1px solid #444;color:#666;font:10px var(--f-mono);display:flex;align-items:flex-end;justify-content:center;padding-bottom:4px}
+.k.bk{top:0;height:62%;background:#1b1b1d;border:1px solid #000;border-radius:0 0 4px 4px;z-index:2}
+.k.on{background:var(--accent)}
+</style>
+</head>
+<body>
+<header>
+  <div class="top">
+    <h1>Roland <span>S-1</span> Editor</h1>
+    <select id="out" aria-label="Salida MIDI"><option value="">Salida MIDI</option></select>
+    <select id="inp" aria-label="Entrada MIDI"><option value="">Entrada MIDI</option></select>
+    <select id="ch" aria-label="Canal MIDI"></select>
+    <span class="grow"></span>
+    <button id="help" class="tog" title="Mostrar u ocultar la explicación de cada control">Ayuda</button>
+    <button id="fs">Pantalla completa</button>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <select id="rndset" aria-label="Qué randomizar">
+      <option value="all">Random: todo</option>
+      <option value="filtro">Random: filtro y envolvente</option>
+      <option value="osc">Random: osciladores</option>
+      <option value="fx">Random: efectos</option>
+    </select>
+    <button id="rnd">Random</button>
+    <button id="init">Init</button>
+    <button id="all" class="pri">Enviar todo al S-1</button>
+  </div>
+  <div id="st" role="status">Sin conectar</div>
+</header>
+
+<div id="turn">Gira el dispositivo a horizontal para ver más controles a la vez.</div>
+
+<main id="cols"></main>
+
+<section class="wide" id="seqsec">
+  <h2>Secuenciador aleatorio</h2>
+  <div class="d sd">Genera una secuencia de notas al azar dentro de una escala y la toca en el S-1 desde esta pantalla. Con el reloj MIDI activado, el S-1 sigue el tempo de aquí y puedes grabarla en un pattern. Toca un paso para activarlo o apagarlo.</div>
+  <div class="sgrid">
+    <label>Tónica<select id="sq-root"></select></label>
+    <label>Escala<select id="sq-scale"></select></label>
+    <label>Octava base<select id="sq-base"></select></label>
+    <label>Rango (octavas)<select id="sq-oct"></select></label>
+    <label>Pasos<select id="sq-steps"></select></label>
+    <label>Resolución del paso<select id="sq-res"></select></label>
+    <label>Detener tras<select id="sq-loops"></select></label>
+    <label><span>Densidad <b id="v-den"></b></span><input type="range" id="sq-den" min="5" max="100"></label>
+    <label><span>Duración de nota <b id="v-gate"></b></span><input type="range" id="sq-gate" min="10" max="100"></label>
+    <label><span>Variación de velocity <b id="v-vel"></b></span><input type="range" id="sq-vel" min="0" max="100"></label>
+    <label><span>Tempo <b id="v-bpm"></b></span><input type="range" id="sq-bpm" min="40" max="220"></label>
+  </div>
+  <div class="row">
+    <button id="sq-gen" class="pri">Generar</button>
+    <button id="sq-mut">Mutar</button>
+    <button id="sq-dn1">−1 st</button><button id="sq-up1">+1 st</button>
+    <button id="sq-dn12">−8ª</button><button id="sq-up12">+8ª</button>
+    <button id="sq-play" class="pri">Reproducir</button>
+    <label class="chk"><input type="checkbox" id="sq-sync"> Enviar reloj MIDI al S-1</label>
+  </div>
+  <div class="steps" id="steps"></div>
+  <div class="d">Para grabarla en el S-1: elige un pattern vacío, pon SYNC en AUtO (menú), pulsa REC en el S-1 hasta que se encienda y pulsa Reproducir aquí con el reloj MIDI activado. El S-1 graba lo que recibe en tiempo real. Después guarda con SHIFT + pad 16 (WRITE). Esta función no está probada con tu equipo: si el S-1 no sigue el reloj, desactiva la casilla y graba solo las notas.</div>
+  <div class="hint" id="seqmsg">Genera una secuencia y pulsa Reproducir.</div>
+</section>
+
+<section class="wide">
+  <h2>Pattern del S-1 (Program Change)</h2>
+  <div class="row">
+    <select id="pcbank" aria-label="Banco"></select>
+    <select id="pcnum" aria-label="Pattern"></select>
+    <button id="pcsend" class="pri">Cambiar</button>
+  </div>
+  <div class="hint">El cambio de pattern va por el canal 16 (ajuste Pc.Ch del S-1).</div>
+</section>
+
+<section class="wide">
+  <h2>Mis patches</h2>
+  <div class="row">
+    <input type="text" id="pname" placeholder="Nombre del patch" style="flex:1 1 200px">
+    <label class="chk"><input type="checkbox" id="pseq"> Incluir secuencia</label>
+    <button id="psave" class="pri">Guardar actual</button>
+  </div>
+  <div class="row" style="margin-top:10px">
+    <span class="hint" style="margin:0">Comparar A/B:</span>
+    <button id="capA">Guardar en A</button><button id="goA" disabled>Ir a A</button>
+    <button id="capB">Guardar en B</button><button id="goB" disabled>Ir a B</button>
+    <span class="grow"></span>
+    <button id="pexp">Exportar</button>
+    <button id="pimp">Importar</button>
+    <input type="file" id="pfile" accept=".json,application/json" hidden>
+  </div>
+  <div id="plist"></div>
+  <div class="hint" id="pmsg">Los patches se guardan en este navegador. Exporta una copia de vez en cuando.</div>
+</section>
+
+<div id="kbar" aria-label="Teclado">
+  <div id="kctl">
+    <button id="octd">Oct −</button>
+    <div class="lab" id="octl">C4</div>
+    <button id="octu">Oct +</button>
+  </div>
+  <div id="keys"></div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const SEG=(cc,name,opts,def=0,note='')=>({cc,name,t:'sel',opts,def,note});
+const SL=(cc,name,def=0,note='')=>({cc,name,t:'sl',def,note});
+
+const SECTIONS=[
+ {n:'LFO',p:[
+  SL(3,'Rate',40),
+  SEG(12,'Forma de onda',['Saw','Inv saw','Tri','Square','RND','Noise'],2),
+  SEG(79,'Modo',['Normal','Fast'],0),
+  SEG(106,'Sync a tempo',['Off','On'],0),
+  SEG(105,'Key trigger',['Off','On'],0)]},
+ {n:'Oscilador',p:[
+  SEG(14,'Range',["64'","32'","16'","8'","4'","2'"],3),
+  SL(76,'Fine tune',64),
+  SL(13,'LFO a pitch',0),
+  SL(19,'Nivel Square',100),
+  SL(20,'Nivel Saw',0),
+  SL(21,'Nivel Sub',0),
+  SL(23,'Nivel Noise',0),
+  SEG(22,'Sub OCT',['-2oct A','-2oct','-1oct'],2),
+  SEG(78,'Noise mode',['Pink','White'],0)]},
+ {n:'PWM',p:[
+  SEG(16,'PWM source',['Env','Man','LFO'],1),
+  SL(15,'PWM depth / ancho',128)]},
+ {n:'Osc Draw',p:[
+  SEG(107,'Switch',['Off','Step','Slope'],0),
+  SL(102,'Multiply',0)]},
+ {n:'Osc Chop',p:[
+  SL(103,'Overtone',0),
+  SL(104,'Comb',0)]},
+ {n:'Filtro',p:[
+  SL(74,'Freq',100),
+  SL(71,'Reso',0),
+  SL(25,'LFO',0),
+  SL(24,'ENV',0),
+  SL(26,'Keyboard follow',0)]},
+ {n:'Envolvente y AMP',p:[
+  SL(73,'Attack',0),SL(75,'Decay',60),SL(30,'Sustain',100),SL(72,'Release',20),
+  SEG(28,'AMP source',['Gate','Env'],1),
+  SEG(29,'ENV trigger',['LFO','Gate','Trig'],1)]},
+ {n:'Controlador',p:[
+  SEG(80,'Poly mode',['Mono','Unison','Poly','Chord'],0),
+  SEG(31,'Portamento',['Off','On','Auto'],0),
+  SL(5,'Portamento time',0),
+  SEG(77,'Transpose SW',['Off','On'],0),
+  SL(17,'LFO mod depth',0),
+  SL(18,'Osc bend sens',60),
+  SL(27,'Filter bend sens',60)]},
+ {n:'Chord',p:[
+  SEG(81,'Voz 2',['Off','On'],0),SL(85,'Voz 2 shift',64,'64 = 0 (supuesto)'),
+  SEG(82,'Voz 3',['Off','On'],0),SL(86,'Voz 3 shift',64,'64 = 0 (supuesto)'),
+  SEG(83,'Voz 4',['Off','On'],0),SL(87,'Voz 4 shift',64,'64 = 0 (supuesto)')]},
+ {n:'Efectos',p:[
+  SEG(93,'Chorus',['Off','1','2','3','4'],0),
+  SL(92,'Delay level',0),SL(90,'Delay time',60),
+  SL(91,'Reverb level',0),SL(89,'Reverb time',60)]},
+ {n:'Mixer y expresión',p:[
+  SL(1,'Modulation',0),SL(10,'Pan',64),SL(11,'Expression',127)]}
+];
+
+const SDESC={
+ 'LFO':'Oscilador de baja frecuencia. Crea una modulación lenta que puede mover el tono, el filtro o el ancho de pulso: vibrato, trinos, efectos de wah.',
+ 'Oscilador':'Genera el sonido base. Mezclas onda cuadrada, sierra, suboscilador y ruido, y todo pasa después por el filtro.',
+ 'PWM':'Modulación del ancho de pulso: cambia la proporción de la onda cuadrada y con ello su timbre. Un pulso estrecho suena más nasal.',
+ 'Osc Draw':'Sustituye la onda cuadrada por una forma que dibujas en 16 pasos. El dibujo se hace en el S-1 con SHIFT + pad 5 (OSC DRAW).',
+ 'Osc Chop':'Trocea la onda en 16 pasos para resaltar armónicos. El patrón de corte se edita en el S-1 con SHIFT + pad 6 (OSC CHOP).',
+ 'Filtro':'Filtro paso bajo: deja pasar los graves y recorta los agudos. Es el control que más cambia el carácter del sonido.',
+ 'Envolvente y AMP':'La envolvente ADSR describe cómo evoluciona cada nota en el tiempo. Puede mover el volumen (AMP) y el filtro.',
+ 'Controlador':'Cómo responde el sintetizador al tocar: número de voces, portamento, transposición y sensibilidad de pitch bend.',
+ 'Chord':'Solo en Poly mode = Chord. Añade hasta tres voces extra a cada nota, con su propia transposición.',
+ 'Efectos':'Efectos integrados: chorus, delay y reverb.',
+ 'Mixer y expresión':'Mensajes MIDI generales: modulación, panorama y volumen de expresión.'
+};
+const DESC={
+ 3:'Velocidad del LFO. Con Sync a tempo activado se ajusta a figuras de nota en lugar de a un valor libre.',
+ 12:'Forma de la señal moduladora: sierra, sierra invertida, triángulo, cuadrada, RND (valores aleatorios) o NOISE (ruido, modulación muy fina).',
+ 79:'Normal: ciclo de LFO habitual. Fast: ciclo mucho más rápido, que subraya la modulación. No hace nada si Sync a tempo está en On.',
+ 106:'Sincroniza la velocidad del LFO con el tempo del pattern.',
+ 105:'Si está en On, el LFO se reinicia cada vez que suena una nota.',
+ 14:'Octava del oscilador, de 64\' (muy grave) a 2\' (agudo). Con 8\', la nota más grave del teclado (pad 2) es el do central, nota MIDI 60.',
+ 76:'Afinación fina del oscilador, en un rango de ±1 octava. En el S-1 se hace con SHIFT + RANGE.',
+ 13:'Cuánto mueve el LFO el tono del oscilador. Valores bajos dan vibrato; altos, trinos y efectos extremos.',
+ 19:'Nivel de la onda cuadrada, o de tu forma de onda si Osc Draw está activado.',
+ 20:'Nivel de la onda de sierra, rica en armónicos y brillante.',
+ 21:'Nivel del suboscilador, que suena una o dos octavas por debajo y añade cuerpo.',
+ 23:'Nivel del ruido. Si el modo Riser está activo en el S-1, este mando controla el riser.',
+ 22:'Forma y octava del suboscilador: -2oct A (dos octavas abajo, asimétrica), -2oct (dos abajo, simétrica) o -1oct (una abajo, simétrica).',
+ 78:'Tipo de ruido. Pink (rosa) es más grave y suave; White (blanco) es más brillante y áspero.',
+ 16:'Qué mueve el ancho de pulso: Env (la envolvente), Man (valor fijo, el de PWM depth) o LFO (modulación cíclica).',
+ 15:'Con PWM source en Man fija el ancho de pulso. Con LFO o Env regula cuánto se mueve.',
+ 107:'Off: cuadrada normal. Step: tu onda dibujada con escalones. Slope: tu onda dibujada con rampas.',
+ 102:'Repite tu onda dibujada varias veces dentro de un ciclo y sube el tono (1.0 a 32.0). Cada duplicación sube una octava.',
+ 103:'Intensidad del troceado de la onda. 100 la silencia por completo; por encima de 100 la fase se invierte y los armónicos destacan más que la fundamental.',
+ 104:'Número de repeticiones del patrón de corte dentro del ciclo. Más repeticiones dan un sonido metálico. Con notas muy agudas puede producir ruido.',
+ 74:'Frecuencia de corte del filtro paso bajo. Girar a la izquierda apaga los agudos; en el mínimo no hay sonido.',
+ 71:'Resonancia: resalta las frecuencias alrededor del corte. Al máximo el filtro llega a autooscilar.',
+ 25:'Cuánto mueve el LFO la frecuencia de corte del filtro.',
+ 24:'Cuánto mueve la envolvente la frecuencia de corte. Con valores altos, cada nota empieza brillante y se cierra.',
+ 26:'Hace que el corte siga la altura de la nota. En el valor máximo el corte acompaña a la nota exactamente, así el timbre no cambia entre graves y agudos.',
+ 73:'Tiempo que tarda la envolvente en llegar a su nivel máximo al pulsar una tecla.',
+ 75:'Tiempo que tarda en bajar desde el máximo hasta el nivel de sustain.',
+ 30:'Nivel que mantiene el sonido mientras la tecla sigue pulsada.',
+ 72:'Tiempo que tarda en apagarse el sonido después de soltar la tecla.',
+ 28:'Gate: volumen fijo mientras la tecla está pulsada. Env: el volumen sigue la envolvente ADSR.',
+ 29:'Qué dispara la envolvente. LFO: se repite con cada ciclo del LFO. Gate: al tocar una nota nueva (no al tocar ligado). Trig: en cada pulsación, también ligando.',
+ 80:'Mono: una nota a la vez. Unison: varias voces apiladas en una sola nota. Poly: hasta cuatro notas a la vez. Chord: cada nota suena con las voces extra configuradas abajo.',
+ 31:'Off: sin portamento. On: la nota se desliza siempre hasta la siguiente. Auto: solo al tocar ligado, sin soltar la anterior.',
+ 5:'Tiempo del deslizamiento entre notas del portamento.',
+ 77:'Activa o desactiva la transposición de la afinación (key transpose, de -60 a +60 semitonos en el S-1).',
+ 17:'Intensidad del efecto (vibrato o growl) cuando recibe modulación MIDI o movimiento D-MOTION.',
+ 18:'Rango del pitch bend sobre el oscilador. En el S-1, 120 equivale a ±1 octava y 240 a ±2.',
+ 27:'Rango del pitch bend sobre el corte del filtro.',
+ 81:'Activa la voz 2 del modo Chord.',85:'Transposición de la voz 2 (de -12 a +12 semitonos).',
+ 82:'Activa la voz 3 del modo Chord.',86:'Transposición de la voz 3 (de -12 a +12 semitonos).',
+ 83:'Activa la voz 4 del modo Chord.',87:'Transposición de la voz 4 (de -12 a +12 semitonos).',
+ 93:'Chorus: añade una ligera modulación de tono para un sonido más ancho. 1 estándar, 2 más rápido, 3 tipo altavoz rotativo, 4 más lento.',
+ 92:'Volumen del delay (eco).',
+ 90:'Tiempo del delay entre repeticiones.',
+ 91:'Volumen de la reverb.',
+ 89:'Duración de la cola de la reverb.',
+ 1:'Rueda de modulación: aplica el LFO al oscilador o al filtro según el ajuste LFO mod depth.',
+ 10:'Posición en el panorama estéreo, izquierda a derecha.',
+ 11:'Volumen de expresión, como un pedal de expresión.'
+};
+
+const ALL=SECTIONS.flatMap(s=>s.p);
+const state={},els={};
+let out=null,inp=null,midi=null;
+
+// SUPUESTO: los selectores se reparten por igual sobre 0-127.
+const idxToVal=(i,n)=>Math.min(127,Math.floor((i+.5)*128/n));
+const valToIdx=(v,n)=>Math.min(n-1,Math.floor(v*n/128));
+
+// ---- Ajustes persistentes ----
+const SK='s1editor.settings';
+let cfg={};try{cfg=JSON.parse(localStorage.getItem(SK)||'{}')||{}}catch(e){cfg={}}
+function saveCfg(){try{localStorage.setItem(SK,JSON.stringify(cfg))}catch(e){}}
+
+// ---- Construcción de paneles ----
+const cols=$('cols');
+SECTIONS.forEach(s=>{
+  const sec=document.createElement('section');
+  const h=document.createElement('h2');h.textContent=s.n;sec.appendChild(h);
+  if(SDESC[s.n]){const sd=document.createElement('div');sd.className='d sd';sd.textContent=SDESC[s.n];sec.appendChild(sd)}
+  s.p.forEach(p=>{
+    const d=document.createElement('div');d.className='ctl';
+    const lab=document.createElement('label');
+    lab.innerHTML='<span>'+p.name+'<small>CC'+p.cc+(p.note?' · '+p.note:'')+'</small></span><b></b>';
+    lab.onclick=()=>d.classList.toggle('open');
+    d.appendChild(lab);
+    const ds=document.createElement('div');ds.className='d';ds.textContent=DESC[p.cc]||'';d.appendChild(ds);
+    if(p.t==='sl'){
+      const r=document.createElement('input');r.type='range';r.min=0;r.max=127;r.id='cc'+p.cc;
+      r.setAttribute('aria-label',p.name);
+      r.oninput=()=>setCC(p.cc,+r.value,true);
+      d.appendChild(r);els[p.cc]={p,r,b:lab.querySelector('b')};
+    }else{
+      const g=document.createElement('div');g.className='seg';
+      const bs=p.opts.map((o,i)=>{const b=document.createElement('button');b.textContent=o;
+        b.onclick=()=>setCC(p.cc,idxToVal(i,p.opts.length),true);g.appendChild(b);return b});
+      d.appendChild(g);els[p.cc]={p,bs,b:lab.querySelector('b')};
+    }
+    sec.appendChild(d);
+  });
+  cols.appendChild(sec);
+});
+
+const ch=()=>+$('ch').value||3;
+function tx(bytes,t){if(!out)return;try{if(t===undefined)out.send(bytes);else out.send(bytes,t)}catch(e){}}
+function paint(cc){
+  const e=els[cc];if(!e)return;const v=state[cc];
+  if(e.p.t==='sl'){e.r.value=v;e.b.textContent=v}
+  else{const i=valToIdx(v,e.p.opts.length);e.bs.forEach((b,k)=>b.classList.toggle('on',k===i))}
+}
+function setCC(cc,v,send){
+  state[cc]=v;paint(cc);
+  if(send)tx([0xB0|(ch()-1),cc,v]);
+}
+function sendAll(){if(out)ALL.forEach(p=>tx([0xB0|(ch()-1),p.cc,state[p.cc]]))}
+function loadState(o){ALL.forEach(p=>{if(o[p.cc]!==undefined)setCC(p.cc,o[p.cc],true)})}
+function defaults(){const o={};ALL.forEach(p=>o[p.cc]=p.t==='sel'?idxToVal(p.def,p.opts.length):p.def);return o}
+function loadSilent(){const d=defaults();ALL.forEach(p=>{state[p.cc]=d[p.cc];paint(p.cc)})}
+
+const SKIP_RND=[1,10,11,5,17,18,27,77,80,81,82,83,85,86,87,31,93,79,106,105,22,28,29,78,16,107,12,14,76,102,103,104];
+const RND_SETS={filtro:[74,71,25,24,26,73,75,30,72],osc:[13,20,21,23,15,103,104],fx:[92,90,91,89]};
+function rndState(){
+  const set=$('rndset').value;
+  const ccs=set==='all'?ALL.filter(p=>!SKIP_RND.includes(p.cc)).map(p=>p.cc):RND_SETS[set];
+  const o={};ccs.forEach(c=>o[c]=Math.floor(Math.random()*128));
+  if(o[74]!==undefined)o[74]=40+Math.floor(Math.random()*88);
+  if(o[30]!==undefined)o[30]=30+Math.floor(Math.random()*98);
+  if(set==='all'||set==='osc')o[19]=100;
+  loadState(o);
+}
+
+// ---- Selectores fijos ----
+for(let i=1;i<=16;i++)$('ch').add(new Option('Canal '+i,i));
+$('ch').value=cfg.ch||3;
+$('ch').onchange=()=>{cfg.ch=+$('ch').value;saveCfg()};
+for(let i=1;i<=4;i++)$('pcbank').add(new Option('Banco '+i,i-1));
+for(let i=1;i<=16;i++)$('pcnum').add(new Option('Pattern '+i,i-1));
+$('pcsend').onclick=()=>tx([0xC0|15,(+$('pcbank').value)*16+(+$('pcnum').value)]);
+$('init').onclick=()=>loadState(defaults());
+$('rnd').onclick=rndState;
+$('all').onclick=sendAll;
+
+// ---- Ayuda y pantalla completa ----
+if(cfg.help===undefined)cfg.help=true;
+function applyHelp(){document.body.classList.toggle('help',!!cfg.help);$('help').classList.toggle('on',!!cfg.help)}
+$('help').onclick=()=>{cfg.help=!cfg.help;saveCfg();applyHelp()};
+applyHelp();
+const fsb=$('fs');
+if(!document.documentElement.requestFullscreen)fsb.hidden=true;
+fsb.onclick=async()=>{
+  try{
+    if(document.fullscreenElement)await document.exitFullscreen();
+    else{await document.documentElement.requestFullscreen({navigationUI:'hide'});try{await screen.orientation.lock('landscape')}catch(e){}}
+  }catch(e){setSt('La pantalla completa no está disponible en este navegador.','err')}
+};
+document.addEventListener('fullscreenchange',()=>{
+  fsb.textContent=document.fullscreenElement?'Salir':'Pantalla completa';
+  if(!document.fullscreenElement){try{screen.orientation.unlock()}catch(e){}}
+});
+let wl=null;
+async function wake(){try{if('wakeLock' in navigator&&document.visibilityState==='visible')wl=await navigator.wakeLock.request('screen')}catch(e){}}
+document.addEventListener('visibilitychange',wake);wake();
+
+// ---- MIDI ----
+const st=$('st');
+function setSt(t,c){st.textContent=t;st.className=c||''}
+function refreshPorts(){
+  const o=$('out'),i=$('inp'),po=o.value,pi=i.value;
+  o.innerHTML='';i.innerHTML='';
+  o.add(new Option('Salida MIDI',''));i.add(new Option('Entrada MIDI',''));
+  midi.outputs.forEach(x=>o.add(new Option(x.name,x.id)));
+  midi.inputs.forEach(x=>i.add(new Option(x.name,x.id)));
+  const find=l=>[...l.values()].find(x=>/S-1/i.test(x.name));
+  const so=midi.outputs.get(po)||midi.outputs.get(cfg.outId)||find(midi.outputs);
+  const si=midi.inputs.get(pi)||midi.inputs.get(cfg.inId)||find(midi.inputs);
+  if(so)o.value=so.id;if(si)i.value=si.id;
+  bind();
+}
+function bind(){
+  out=midi.outputs.get($('out').value)||null;
+  if(inp)inp.onmidimessage=null;
+  inp=midi.inputs.get($('inp').value)||null;
+  if(inp)inp.onmidimessage=onMsg;
+  cfg.outId=$('out').value;cfg.inId=$('inp').value;saveCfg();
+  if(out)setSt('Conectado: '+out.name+' · canal '+ch(),'ok');
+  else setSt(midi.outputs.size?'Elige la salida MIDI':'No se detecta ningún dispositivo MIDI. Conecta el S-1 por USB-C.');
+}
+function onMsg(e){
+  const [s,a,b]=e.data;
+  if((s&0xF0)===0xB0&&els[a]&&(s&15)===ch()-1){state[a]=b;paint(a)}
+}
+$('out').onchange=()=>{if(midi)bind()};
+$('inp').onchange=()=>{if(midi)bind()};
+$('ch').addEventListener('change',()=>{if(midi&&out)setSt('Conectado: '+out.name+' · canal '+ch(),'ok')});
+loadSilent();
+const NOMIDI='Este navegador no da acceso a MIDI. Usa Chrome en Android.';
+if(!navigator.requestMIDIAccess)setSt(NOMIDI,'err');
+else{
+  try{navigator.requestMIDIAccess({sysex:false}).then(m=>{midi=m;m.onstatechange=refreshPorts;refreshPorts()},
+    e=>setSt('Permiso MIDI denegado. '+(e&&e.name||''),'err'))}catch(e){setSt(NOMIDI,'err')}
+}
+
+// ---- Teclado táctil ----
+let kbBase=cfg.kbBase||60;
+const held=new Map(),touch=new Map();
+function on(n,el){if(held.has(n))return;held.set(n,el);el.classList.add('on');tx([0x90|(ch()-1),n,100])}
+function off(n){const el=held.get(n);if(!el)return;el.classList.remove('on');held.delete(n);tx([0x80|(ch()-1),n,0])}
+const NOTE_NAMES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const nn=n=>NOTE_NAMES[n%12]+(Math.floor(n/12)-1);
+const isBlack=n=>[1,3,6,8,10].includes(n%12);
+function buildKb(){
+  [...held.keys()].forEach(off);touch.clear();
+  const K=$('keys');K.innerHTML='';
+  const wn=innerWidth>1000?21:innerWidth>700?14:10;
+  const w100=100/wn;let n=kbBase,w=0;const bl=[];
+  while(w<wn){
+    if(!isBlack(n)){
+      const k=document.createElement('div');k.className='k w';k.dataset.n=n;
+      k.style.left=(w*w100)+'%';k.style.width=w100+'%';
+      if(n%12===0)k.textContent=nn(n);
+      K.appendChild(k);w++;
+    }else bl.push({n,left:w*w100});
+    n++;
+  }
+  bl.forEach(b=>{
+    const k=document.createElement('div');k.className='k bk';k.dataset.n=b.n;
+    k.style.left=(b.left-w100*.3)+'%';k.style.width=(w100*.6)+'%';K.appendChild(k);
+  });
+  $('octl').textContent=nn(kbBase);
+}
+function keyAt(x,y){const e=document.elementFromPoint(x,y);return e&&e.classList.contains('k')?e:null}
+const keysEl=$('keys');
+keysEl.addEventListener('pointerdown',e=>{
+  keysEl.setPointerCapture(e.pointerId);
+  const k=keyAt(e.clientX,e.clientY);
+  if(k){touch.set(e.pointerId,+k.dataset.n);on(+k.dataset.n,k)}
+});
+keysEl.addEventListener('pointermove',e=>{
+  if(!touch.has(e.pointerId))return;
+  const k=keyAt(e.clientX,e.clientY),cur=touch.get(e.pointerId);
+  if(k&&+k.dataset.n!==cur){off(cur);touch.set(e.pointerId,+k.dataset.n);on(+k.dataset.n,k)}
+});
+const upK=e=>{if(touch.has(e.pointerId)){off(touch.get(e.pointerId));touch.delete(e.pointerId)}};
+keysEl.addEventListener('pointerup',upK);keysEl.addEventListener('pointercancel',upK);
+$('octd').onclick=()=>{kbBase=Math.max(24,kbBase-12);cfg.kbBase=kbBase;saveCfg();buildKb()};
+$('octu').onclick=()=>{kbBase=Math.min(84,kbBase+12);cfg.kbBase=kbBase;saveCfg();buildKb()};
+buildKb();
+addEventListener('resize',()=>{clearTimeout(buildKb._t);buildKb._t=setTimeout(buildKb,200)});
+
+// ---- Secuenciador aleatorio ----
+const SCALES={
+ 'Menor natural':[0,2,3,5,7,8,10],'Mayor':[0,2,4,5,7,9,11],'Pentatónica menor':[0,3,5,7,10],
+ 'Pentatónica mayor':[0,2,4,7,9],'Dórica':[0,2,3,5,7,9,10],'Frigia':[0,1,3,5,7,8,10],
+ 'Blues':[0,3,5,6,7,10],'Cromática':[0,1,2,3,4,5,6,7,8,9,10,11]
+};
+const sq=Object.assign({steps:16,root:0,scale:'Pentatónica menor',base:3,oct:2,density:60,gate:60,vel:30,bpm:120,res:6,sync:false,loops:0,notes:[]},cfg.seq||{});
+function persistSq(){cfg.seq=sq;saveCfg()}
+function pool(){
+  const iv=SCALES[sq.scale]||SCALES['Menor natural'],base=(sq.base+1)*12+sq.root,p=[];
+  for(let o=0;o<sq.oct;o++)iv.forEach(i=>p.push(base+o*12+i));
+  return p.filter(n=>n>=0&&n<=127);
+}
+const rnd=n=>Math.floor(Math.random()*n);
+function pick(p){return Math.random()<.25?p[0]:p[rnd(p.length)]}
+function newStep(i,p){
+  const accent=i%4===0?12:0;
+  return{on:true,n:pick(p),v:Math.max(1,Math.min(127,Math.round(100+accent-Math.random()*sq.vel*.8))),g:Math.max(.1,Math.min(1,sq.gate/100*(.75+Math.random()*.5)))};
+}
+function generate(){
+  const p=pool();sq.notes=[];
+  for(let i=0;i<sq.steps;i++){
+    const s=newStep(i,p);s.on=(i===0)||Math.random()*100<sq.density;sq.notes.push(s);
+  }
+  persistSq();renderSteps();
+}
+function mutate(){
+  const p=pool();
+  sq.notes.forEach((s,i)=>{
+    if(Math.random()<.25){
+      if(Math.random()<.5){s.on=!s.on;if(s.on&&(s.n===undefined))s.n=pick(p)}
+      else{s.n=pick(p);s.on=true}
+    }
+  });
+  persistSq();renderSteps();
+}
+function shiftAll(d){
+  sq.notes.forEach(s=>{if(s.n!==undefined)s.n=Math.max(0,Math.min(127,s.n+d))});
+  persistSq();renderSteps();
+}
+let cells=[];
+function renderSteps(){
+  const box=$('steps');box.innerHTML='';cells=[];
+  while(sq.notes.length<sq.steps){sq.notes.push({on:false,n:pool()[0],v:100,g:.6})}
+  sq.notes.length=sq.steps;
+  sq.notes.forEach((s,i)=>{
+    const b=document.createElement('button');
+    b.className=(s.on?'on ':'')+(i%4===0?'beat':'');
+    b.textContent=s.on?nn(s.n):'·';
+    b.setAttribute('aria-label','Paso '+(i+1));
+    b.onclick=()=>{
+      s.on=!s.on;if(s.on&&s.n===undefined)s.n=pick(pool());
+      b.classList.toggle('on',s.on);b.textContent=s.on?nn(s.n):'·';persistSq();
+      if(s.on&&out&&!running){tx([0x90|(ch()-1),s.n,s.v]);tx([0x80|(ch()-1),s.n,0],performance.now()+180)}
+    };
+    box.appendChild(b);cells.push(b);
+  });
+}
+function bindSel(id,key,opts,num=true){
+  const s=$(id);opts.forEach(([l,v])=>s.add(new Option(l,v)));
+  s.value=sq[key];
+  s.onchange=()=>{sq[key]=num?+s.value:s.value;persistSq();if(key==='steps')renderSteps()};
+}
+bindSel('sq-root','root',NOTE_NAMES.map((n,i)=>[n,i]));
+bindSel('sq-scale','scale',Object.keys(SCALES).map(k=>[k,k]),false);
+bindSel('sq-base','base',[1,2,3,4,5].map(o=>['C'+o,o]));
+bindSel('sq-oct','oct',[1,2,3].map(o=>[o+(o>1?' octavas':' octava'),o]));
+bindSel('sq-steps','steps',[8,16,32,64].map(o=>[o+' pasos',o]));
+bindSel('sq-res','res',[['1/32',3],['1/16',6],['1/8',12]]);
+bindSel('sq-loops','loops',[['Nunca',0],['1 vuelta',1],['2 vueltas',2],['4 vueltas',4],['8 vueltas',8]]);
+function bindRange(id,vid,key,fmt){
+  const r=$(id),v=$(vid);r.value=sq[key];v.textContent=fmt(sq[key]);
+  r.oninput=()=>{sq[key]=+r.value;v.textContent=fmt(sq[key]);persistSq()};
+}
+bindRange('sq-den','v-den','density',v=>v+'%');
+bindRange('sq-gate','v-gate','gate',v=>v+'%');
+bindRange('sq-vel','v-vel','vel',v=>v+'%');
+bindRange('sq-bpm','v-bpm','bpm',v=>v+' BPM');
+$('sq-sync').checked=!!sq.sync;
+$('sq-sync').onchange=()=>{sq.sync=$('sq-sync').checked;persistSq()};
+$('sq-gen').onclick=generate;
+$('sq-mut').onclick=mutate;
+$('sq-dn1').onclick=()=>shiftAll(-1);$('sq-up1').onclick=()=>shiftAll(1);
+$('sq-dn12').onclick=()=>shiftAll(-12);$('sq-up12').onclick=()=>shiftAll(12);
+
+let running=false,seqTimer=null,nextT=0,tick=0,stepIdx=0,loopCount=0,cur=-1,rafOn=false;
+const queue=[];
+const seqMsg=t=>{$('seqmsg').textContent=t};
+function setPlayBtn(){const b=$('sq-play');b.textContent=running?'Parar':'Reproducir';b.classList.toggle('pri',!running)}
+function sched(){
+  const clk=60000/sq.bpm/24;
+  while(running&&nextT<performance.now()+120){
+    if(sq.sync)tx([0xF8],nextT);
+    if(tick%sq.res===0){
+      const i=stepIdx,s=sq.notes[i];
+      queue.push({t:nextT,i});
+      if(s&&s.on){
+        tx([0x90|(ch()-1),s.n,s.v],nextT);
+        tx([0x80|(ch()-1),s.n,0],nextT+clk*sq.res*s.g);
+      }
+    }
+    tick++;nextT+=clk;
+    if(tick%sq.res===0){
+      stepIdx++;
+      if(stepIdx>=sq.steps){
+        stepIdx=0;loopCount++;
+        if(sq.loops&&loopCount>=sq.loops){finishSeq(nextT);return}
+      }
+    }
+  }
+}
+function finishSeq(t){
+  clearInterval(seqTimer);seqTimer=null;
+  if(sq.sync)tx([0xFC],t);
+  setTimeout(()=>{running=false;setPlayBtn();seqMsg('Secuencia terminada.')},Math.max(0,t-performance.now())+40);
+}
+function draw(){
+  const now=performance.now();let c=cur;
+  while(queue.length&&queue[0].t<=now)c=queue.shift().i;
+  if(c!==cur){
+    if(cells[cur])cells[cur].classList.remove('cur');
+    cur=c;if(cells[cur])cells[cur].classList.add('cur');
+  }
+  if(running||queue.length)requestAnimationFrame(draw);
+  else{if(cells[cur])cells[cur].classList.remove('cur');cur=-1;rafOn=false}
+}
+function startSeq(){
+  if(!out){seqMsg('Conecta el S-1 antes de reproducir.');return}
+  if(!sq.notes.some(s=>s.on)){seqMsg('No hay notas activas. Pulsa Generar.');return}
+  running=true;tick=0;stepIdx=0;loopCount=0;queue.length=0;
+  nextT=performance.now()+80;
+  if(sq.sync)tx([0xFA],nextT);
+  seqTimer=setInterval(sched,25);
+  setPlayBtn();
+  seqMsg(sq.sync?'Reproduciendo con reloj MIDI. El S-1 sigue este tempo.':'Reproduciendo solo notas, sin reloj.');
+  if(!rafOn){rafOn=true;requestAnimationFrame(draw)}
+}
+function stopSeq(){
+  if(seqTimer){clearInterval(seqTimer);seqTimer=null}
+  running=false;queue.length=0;
+  if(sq.sync)tx([0xFC]);
+  tx([0xB0|(ch()-1),123,0]);
+  setTimeout(()=>tx([0xB0|(ch()-1),123,0]),160);
+  setPlayBtn();seqMsg('Detenido.');
+}
+$('sq-play').onclick=()=>running?stopSeq():startSeq();
+if(!sq.notes.length)generate();else renderSteps();
+setPlayBtn();
+
+// ---- Patches ----
+const KEY='s1editor.patches';
+const pmsg=t=>{$('pmsg').textContent=t};
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+function loadP(){
+  try{
+    const a=JSON.parse(localStorage.getItem(KEY)||'[]');
+    return (Array.isArray(a)?a:[]).filter(p=>p&&p.data).map(p=>({id:p.id||uid(),name:p.name||'Patch',note:p.note||'',data:p.data,seq:p.seq||null,t:p.t||Date.now()}));
+  }catch(e){return[]}
+}
+let P=loadP();
+function saveP(){try{localStorage.setItem(KEY,JSON.stringify(P))}catch(e){pmsg('No se pudo guardar en este navegador. Usa Exportar para conservar tus patches.')}}
+function loadSeq(s){
+  Object.assign(sq,JSON.parse(JSON.stringify(s)));
+  ['sq-root','sq-scale','sq-base','sq-oct','sq-steps','sq-res','sq-loops'].forEach(id=>{
+    const k={'sq-root':'root','sq-scale':'scale','sq-base':'base','sq-oct':'oct','sq-steps':'steps','sq-res':'res','sq-loops':'loops'}[id];$(id).value=sq[k]});
+  [['sq-den','v-den','density',v=>v+'%'],['sq-gate','v-gate','gate',v=>v+'%'],['sq-vel','v-vel','vel',v=>v+'%'],['sq-bpm','v-bpm','bpm',v=>v+' BPM']]
+    .forEach(([i,v,k,f])=>{$(i).value=sq[k];$(v).textContent=f(sq[k])});
+  $('sq-sync').checked=!!sq.sync;persistSq();renderSteps();
+}
+function renderPatches(){
+  const l=$('plist');l.innerHTML='';
+  if(!P.length){const e=document.createElement('div');e.className='hint';e.textContent='Aún no hay patches. Ajusta el sonido y pulsa Guardar actual.';l.appendChild(e);return}
+  P.forEach((p,i)=>{
+    const row=document.createElement('div');row.className='pt';
+    const nm=document.createElement('input');nm.type='text';nm.value=p.name;nm.className='nm';nm.setAttribute('aria-label','Nombre');
+    nm.onchange=()=>{p.name=nm.value.trim()||'Patch';saveP()};
+    const nt=document.createElement('input');nt.type='text';nt.value=p.note;nt.placeholder='Notas';nt.setAttribute('aria-label','Notas');
+    nt.onchange=()=>{p.note=nt.value;saveP()};
+    const acts=document.createElement('div');acts.className='acts';
+    const mk=(t,fn,cls)=>{const b=document.createElement('button');b.textContent=t;b.onclick=fn;if(cls)b.className=cls;acts.appendChild(b);return b};
+    mk('Cargar',()=>{loadState(p.data);pmsg('Sonido «'+p.name+'» cargado y enviado.')},'pri');
+    if(p.seq)mk('Secuencia',()=>{loadSeq(p.seq);pmsg('Secuencia de «'+p.name+'» cargada.')});
+    mk('Duplicar',()=>{P.splice(i+1,0,{...p,id:uid(),name:p.name+' copia',t:Date.now()});saveP();renderPatches()});
+    mk('↑',()=>{if(i>0){[P[i-1],P[i]]=[P[i],P[i-1]];saveP();renderPatches()}});
+    mk('↓',()=>{if(i<P.length-1){[P[i+1],P[i]]=[P[i],P[i+1]];saveP();renderPatches()}});
+    const del=mk('Borrar',()=>{
+      if(del.dataset.arm){P.splice(i,1);saveP();renderPatches()}
+      else{del.dataset.arm='1';del.textContent='¿Seguro?';setTimeout(()=>{del.dataset.arm='';del.textContent='Borrar'},2500)}
+    });
+    const left=document.createElement('div');left.appendChild(nm);
+    if(p.seq){const bd=document.createElement('span');bd.className='badge';bd.textContent='con secuencia';left.appendChild(bd)}
+    row.append(left,nt,acts);l.appendChild(row);
+  });
+}
+$('psave').onclick=()=>{
+  const name=$('pname').value.trim()||('Patch '+(P.length+1));
+  P.push({id:uid(),name,note:'',data:{...state},seq:$('pseq').checked?JSON.parse(JSON.stringify(sq)):null,t:Date.now()});
+  saveP();renderPatches();$('pname').value='';pmsg('Guardado «'+name+'».');
+};
+// A/B
+const AB={A:null,B:null};
+['A','B'].forEach(k=>{
+  $('cap'+k).onclick=()=>{AB[k]={...state};$('go'+k).disabled=false;pmsg('Sonido actual guardado en '+k+'.')};
+  $('go'+k).onclick=()=>{if(AB[k]){loadState(AB[k]);pmsg('Cargado '+k+'.')}};
+});
+$('pexp').onclick=()=>{
+  try{
+    const blob=new Blob([JSON.stringify(P,null,1)],{type:'application/json'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='s1-patches.json';
+    document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),3000);
+    pmsg('Exportado '+P.length+' patches.');
+  }catch(e){pmsg('No se pudo exportar.')}
+};
+$('pimp').onclick=()=>$('pfile').click();
+$('pfile').onchange=e=>{
+  const f=e.target.files[0];if(!f)return;const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const x=JSON.parse(r.result);
+      if(!Array.isArray(x)){pmsg('El JSON no tiene el formato esperado.');return}
+      const ok=x.filter(p=>p&&p.data).map(p=>({id:uid(),name:p.name||'Patch',note:p.note||'',data:p.data,seq:p.seq||null,t:Date.now()}));
+      P=P.concat(ok);saveP();renderPatches();pmsg('Importados '+ok.length+' patches.');
+    }catch(_){pmsg('JSON no válido.')}
+    e.target.value='';
+  };
+  r.readAsText(f);
+};
+renderPatches();
+</script>
+</body>
+</html>

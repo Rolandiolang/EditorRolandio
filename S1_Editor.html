@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>S-1 Editor</title>
+<style>
+:root{--bg:#121212;--card:#1d1d1f;--ac:#ff5a00;--tx:#eee;--mu:#888;--ln:#2e2e32}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px system-ui,sans-serif;padding-bottom:90px}
+header{position:sticky;top:0;z-index:5;background:#000;padding:10px 12px;border-bottom:2px solid var(--ac)}
+header h1{margin:0 0 8px;font-size:17px}header h1 span{color:var(--ac)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+select,button,input[type=text]{background:#26262a;color:var(--tx);border:1px solid var(--ln);border-radius:8px;padding:8px 10px;font-size:14px}
+button{cursor:pointer}button.p{background:var(--ac);border-color:var(--ac);color:#000;font-weight:600}
+#st{font-size:12px;color:var(--mu);margin-top:6px}#st.ok{color:#6c6}
+section{background:var(--card);margin:12px;border-radius:12px;padding:12px;border:1px solid var(--ln)}
+section h2{margin:0 0 8px;font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--ac)}
+.p{margin:0}.ctl{padding:7px 0;border-top:1px solid var(--ln)}.ctl:first-of-type{border-top:0}
+.ctl label{display:flex;justify-content:space-between;font-size:13px;color:#ccc;margin-bottom:4px}
+.ctl label b{color:var(--ac);font-weight:600;min-width:34px;text-align:right}
+.ctl small{color:var(--mu);margin-left:6px}
+input[type=range]{width:100%;height:34px;accent-color:var(--ac);margin:0}
+.seg{display:flex;gap:4px;flex-wrap:wrap}
+.seg button{flex:1;min-width:44px;padding:9px 4px;font-size:13px}
+.seg button.on{background:var(--ac);color:#000;border-color:var(--ac);font-weight:600}
+#kb{position:fixed;left:0;right:0;bottom:0;height:80px;display:flex;background:#000;border-top:2px solid var(--ac);touch-action:none;z-index:6}
+.k{flex:1;border-right:1px solid #444;background:#ddd;position:relative}
+.k.b{background:#222}.k.on{background:var(--ac)}
+#plist .it{display:flex;gap:6px;padding:6px 0;border-top:1px solid var(--ln);align-items:center}
+#plist .it span{flex:1}
+</style>
+</head>
+<body>
+<header>
+  <h1>Roland <span>S-1</span> Editor</h1>
+  <div class="row">
+    <select id="out"><option>Salida MIDI…</option></select>
+    <select id="inp"><option>Entrada MIDI…</option></select>
+    <select id="ch" title="Canal MIDI"></select>
+    <button id="init">Init</button>
+    <button id="rnd">Random</button>
+    <button id="all" class="p">Enviar todo</button>
+  </div>
+  <div id="st">Sin conectar</div>
+</header>
+
+<div id="main"></div>
+
+<section>
+  <h2>Pattern (Program Change)</h2>
+  <div class="row">
+    <select id="pcbank"></select><select id="pcnum"></select>
+    <button id="pcsend" class="p">Cambiar</button>
+  </div>
+  <div style="color:var(--mu);font-size:12px;margin-top:6px">Canal de Program Change del S-1: 16 (según tu configuración "Pc.Ch").</div>
+</section>
+
+<section>
+  <h2>Mis patches (guardados en este navegador)</h2>
+  <div class="row"><input type="text" id="pname" placeholder="Nombre del patch" style="flex:1">
+  <button id="psave" class="p">Guardar</button></div>
+  <div id="plist"></div>
+  <div class="row" style="margin-top:8px">
+    <button id="pexp">Exportar JSON</button>
+    <button id="pimp">Importar JSON</button>
+    <input type="file" id="pfile" accept=".json" hidden>
+  </div>
+</section>
+
+<div id="kb"></div>
+
+<script>
+// ---- Definición de parámetros (CC según "Control change list" del manual) ----
+const SEG = (cc,name,opts,def=0,note='')=>({cc,name,t:'sel',opts,def,note});
+const SL  = (cc,name,def=0,note='')=>({cc,name,t:'sl',def,note});
+const SECTIONS = [
+ {n:'LFO',p:[
+  SL(3,'Rate',40),
+  SEG(12,'Forma de onda',['Saw','Inv saw','Tri','Square','RND','Noise'],2),
+  SEG(79,'Modo',['Normal','Fast'],0),
+  SEG(106,'Sync a tempo',['Off','On'],0),
+  SEG(105,'Key trigger',['Off','On'],0)]},
+ {n:'Oscilador',p:[
+  SEG(14,'Range',["64'","32'","16'","8'","4'","2'"],3),
+  SL(76,'Fine tune',64),
+  SL(13,'LFO → pitch',0),
+  SL(19,'Nivel Square',100),
+  SL(20,'Nivel Saw',0),
+  SL(21,'Nivel Sub',0),
+  SL(23,'Nivel Noise',0),
+  SEG(22,'Sub OCT',['-2oct A','-2oct','-1oct'],2),
+  SEG(78,'Noise mode',['Pink','White'],0)]},
+ {n:'PWM',p:[
+  SEG(16,'PWM source',['Env','Man','LFO'],1),
+  SL(15,'PWM depth / ancho',128)]},
+ {n:'Osc Draw',p:[
+  SEG(107,'Switch',['Off','Step','Slope'],0),
+  SL(102,'Multiply',0)]},
+ {n:'Osc Chop',p:[
+  SL(103,'Overtone',0),
+  SL(104,'Comb',0)]},
+ {n:'Filtro',p:[
+  SL(74,'Freq',100),
+  SL(71,'Reso',0),
+  SL(25,'LFO',0),
+  SL(24,'ENV',0),
+  SL(26,'Keyboard follow',0)]},
+ {n:'Envolvente / AMP',p:[
+  SL(73,'Attack',0),SL(75,'Decay',60),SL(30,'Sustain',100),SL(72,'Release',20),
+  SEG(28,'AMP source',['Gate','Env'],1),
+  SEG(29,'ENV trigger',['LFO','Gate','Trig'],1)]},
+ {n:'Controlador',p:[
+  SEG(80,'Poly mode',['Mono','Unison','Poly','Chord'],0),
+  SEG(31,'Portamento',['Off','On','Auto'],0),
+  SL(5,'Portamento time',0),
+  SEG(77,'Transpose SW',['Off','On'],0),
+  SL(17,'LFO mod depth',0),
+  SL(18,'Osc bend sens',60),
+  SL(27,'Filter bend sens',60)]},
+ {n:'Chord',p:[
+  SEG(81,'Voz 2',['Off','On'],0),SL(85,'Voz 2 shift',64,'64 = 0 (supuesto)'),
+  SEG(82,'Voz 3',['Off','On'],0),SL(86,'Voz 3 shift',64,'64 = 0 (supuesto)'),
+  SEG(83,'Voz 4',['Off','On'],0),SL(87,'Voz 4 shift',64,'64 = 0 (supuesto)')]},
+ {n:'EFX',p:[
+  SEG(93,'Chorus',['Off','1','2','3','4'],0),
+  SL(92,'Delay level',0),SL(90,'Delay time',60),
+  SL(91,'Reverb level',0),SL(89,'Reverb time',60)]},
+ {n:'Mixer / expresión',p:[
+  SL(1,'Modulation',0),SL(10,'Pan',64),SL(11,'Expression',127)]}
+];
+const ALL = SECTIONS.flatMap(s=>s.p);
+const state = {};
+const els = {};
+let out=null, inp=null, midi=null;
+
+// ---- Conversión valor<->índice para selectores (SUPUESTO: reparto uniforme 0-127) ----
+const idxToVal=(i,n)=>Math.min(127,Math.floor((i+.5)*128/n));
+const valToIdx=(v,n)=>Math.min(n-1,Math.floor(v*n/128));
+
+// ---- UI ----
+const main=document.getElementById('main');
+SECTIONS.forEach(s=>{
+  const sec=document.createElement('section');
+  sec.innerHTML=`<h2>${s.n}</h2>`;
+  s.p.forEach(p=>{
+    const d=document.createElement('div');d.className='ctl';
+    const lab=document.createElement('label');
+    lab.innerHTML=`<span>${p.name}<small>CC${p.cc}${p.note?' · '+p.note:''}</small></span><b></b>`;
+    d.appendChild(lab);
+    if(p.t==='sl'){
+      const r=document.createElement('input');r.type='range';r.min=0;r.max=127;
+      r.oninput=()=>setCC(p.cc,+r.value,true);
+      d.appendChild(r);els[p.cc]={p,r,b:lab.querySelector('b')};
+    }else{
+      const g=document.createElement('div');g.className='seg';
+      const bs=p.opts.map((o,i)=>{const b=document.createElement('button');b.textContent=o;
+        b.onclick=()=>setCC(p.cc,idxToVal(i,p.opts.length),true);g.appendChild(b);return b});
+      d.appendChild(g);els[p.cc]={p,bs,b:lab.querySelector('b')};
+    }
+    sec.appendChild(d);
+  });
+  main.appendChild(sec);
+});
+
+function paint(cc){
+  const e=els[cc];if(!e)return;const v=state[cc];
+  if(e.p.t==='sl'){e.r.value=v;e.b.textContent=v}
+  else{const i=valToIdx(v,e.p.opts.length);e.bs.forEach((b,k)=>b.classList.toggle('on',k===i));e.b.textContent=''}
+}
+function setCC(cc,v,send){
+  state[cc]=v;paint(cc);
+  if(send&&out)out.send([0xB0|(ch()-1),cc,v]);
+}
+const ch=()=>+document.getElementById('ch').value;
+function sendAll(){ALL.forEach(p=>out&&out.send([0xB0|(ch()-1),p.cc,state[p.cc]]))}
+function loadState(o,send=true){ALL.forEach(p=>{if(o[p.cc]!==undefined)setCC(p.cc,o[p.cc],send)})}
+function initState(){const o={};ALL.forEach(p=>o[p.cc]=p.t==='sel'?idxToVal(p.def,p.opts.length):p.def);loadState(o)}
+function rndState(){const o={};ALL.forEach(p=>{
+  if([1,10,11,5,17,18,27,77,80,81,82,83,85,86,87,31,93,79,106,105,22,28,29,78,16,107,12,14,76].includes(p.cc))return;
+  o[p.cc]=Math.floor(Math.random()*128)});
+  o[19]=100;o[74]=60+Math.floor(Math.random()*67);loadState(o)}
+
+// ---- Selectores fijos ----
+const chSel=document.getElementById('ch');
+for(let i=1;i<=16;i++)chSel.add(new Option('Canal '+i,i));chSel.value=3;
+const pcb=document.getElementById('pcbank'),pcn=document.getElementById('pcnum');
+for(let i=1;i<=4;i++)pcb.add(new Option('Banco '+i,i-1));
+for(let i=1;i<=16;i++)pcn.add(new Option('Pattern '+i,i-1));
+document.getElementById('pcsend').onclick=()=>{
+  if(out)out.send([0xC0|15,(+pcb.value)*16+(+pcn.value)])};
+document.getElementById('init').onclick=initState;
+document.getElementById('rnd').onclick=rndState;
+document.getElementById('all').onclick=sendAll;
+
+// ---- MIDI ----
+const st=document.getElementById('st');
+function refreshPorts(){
+  const o=document.getElementById('out'),i=document.getElementById('inp');
+  const po=o.value,pi=i.value;o.innerHTML='';i.innerHTML='';
+  o.add(new Option('— Salida MIDI —',''));i.add(new Option('— Entrada MIDI —',''));
+  midi.outputs.forEach(x=>o.add(new Option(x.name,x.id)));
+  midi.inputs.forEach(x=>i.add(new Option(x.name,x.id)));
+  const find=(list,re)=>[...list.values()].find(x=>re.test(x.name));
+  const so=midi.outputs.get(po)||find(midi.outputs,/S-1/i),si=midi.inputs.get(pi)||find(midi.inputs,/S-1/i);
+  if(so){o.value=so.id}if(si){i.value=si.id}
+  bind();
+}
+function bind(){
+  out=midi.outputs.get(document.getElementById('out').value)||null;
+  if(inp)inp.onmidimessage=null;
+  inp=midi.inputs.get(document.getElementById('inp').value)||null;
+  if(inp)inp.onmidimessage=onMsg;
+  st.textContent=out?('Conectado a: '+out.name):'Sin salida MIDI seleccionada';
+  st.className=out?'ok':'';
+}
+function onMsg(e){
+  const [s,a,b]=e.data;
+  if((s&0xF0)===0xB0&&els[a]&&(s&15)===ch()-1){state[a]=b;paint(a)}
+}
+document.getElementById('out').onchange=bind;
+document.getElementById('inp').onchange=bind;
+initState_noSend();
+function initState_noSend(){ALL.forEach(p=>{state[p.cc]=p.t==='sel'?idxToVal(p.def,p.opts.length):p.def;paint(p.cc)})}
+if(!navigator.requestMIDIAccess){st.textContent='Este navegador no soporta Web MIDI. Usa Chrome en Android.'}
+else navigator.requestMIDIAccess({sysex:false}).then(m=>{midi=m;m.onstatechange=refreshPorts;refreshPorts()},
+  e=>{st.textContent='Permiso MIDI denegado: '+e})
+
+// ---- Teclado táctil ----
+const kb=document.getElementById('kb');let base=60;
+const keys=[];
+for(let i=0;i<25;i++){
+  const n=base+i,blk=[1,3,6,8,10].includes(i%12);
+  const k=document.createElement('div');k.className='k'+(blk?' b':'');k.dataset.n=n;kb.appendChild(k);keys.push(k)}
+const held=new Map();
+function on(n,el){if(held.has(n))return;held.set(n,el);el.classList.add('on');out&&out.send([0x90|(ch()-1),n,100])}
+function off(n){const el=held.get(n);if(!el)return;el.classList.remove('on');held.delete(n);out&&out.send([0x80|(ch()-1),n,0])}
+const touchMap=new Map();
+function elAt(x,y){const e=document.elementFromPoint(x,y);return e&&e.classList.contains('k')?e:null}
+kb.addEventListener('pointerdown',e=>{kb.setPointerCapture(e.pointerId);const k=elAt(e.clientX,e.clientY);
+  if(k){touchMap.set(e.pointerId,+k.dataset.n);on(+k.dataset.n,k)}});
+kb.addEventListener('pointermove',e=>{if(!touchMap.has(e.pointerId))return;const k=elAt(e.clientX,e.clientY);
+  const cur=touchMap.get(e.pointerId);if(k&&+k.dataset.n!==cur){off(cur);touchMap.set(e.pointerId,+k.dataset.n);on(+k.dataset.n,k)}});
+const up=e=>{if(touchMap.has(e.pointerId)){off(touchMap.get(e.pointerId));touchMap.delete(e.pointerId)}};
+kb.addEventListener('pointerup',up);kb.addEventListener('pointercancel',up);
+
+// ---- Patches locales ----
+const KEY='s1editor.patches';
+const load=()=>{try{return JSON.parse(localStorage.getItem(KEY)||'[]')}catch(e){return []}};
+const save=a=>{try{localStorage.setItem(KEY,JSON.stringify(a))}catch(e){alert('No se pudo guardar en este navegador')}};
+function renderPatches(){
+  const l=document.getElementById('plist');l.innerHTML='';
+  load().forEach((p,i)=>{
+    const d=document.createElement('div');d.className='it';
+    d.innerHTML=`<span>${p.name.replace(/</g,'&lt;')}</span>`;
+    const a=document.createElement('button');a.textContent='Cargar';a.onclick=()=>loadState(p.data);
+    const b=document.createElement('button');b.textContent='✕';b.onclick=()=>{const x=load();x.splice(i,1);save(x);renderPatches()};
+    d.append(a,b);l.appendChild(d)});
+}
+document.getElementById('psave').onclick=()=>{
+  const n=document.getElementById('pname').value.trim()||('Patch '+(load().length+1));
+  const x=load();x.push({name:n,data:{...state}});save(x);renderPatches();document.getElementById('pname').value=''};
+document.getElementById('pexp').onclick=()=>{
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(load(),null,1)],{type:'application/json'}));
+  a.download='s1-patches.json';a.click()};
+document.getElementById('pimp').onclick=()=>document.getElementById('pfile').click();
+document.getElementById('pfile').onchange=e=>{
+  const f=e.target.files[0];if(!f)return;const r=new FileReader();
+  r.onload=()=>{try{const x=JSON.parse(r.result);if(Array.isArray(x)){save(load().concat(x));renderPatches()}}catch(_){alert('JSON no válido')}};r.readAsText(f)};
+renderPatches();
+</script>
+</body>
+</html>

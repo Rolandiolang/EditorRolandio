@@ -115,6 +115,9 @@ section{scroll-margin-top:170px}
 .lcard h3{margin:0 0 4px;font-size:16px}
 .lcard p{margin:6px 0;line-height:1.5;font-size:14px}
 .xyset label.chk{flex-direction:row;align-items:center;font-size:13px;color:var(--fg)}
+#au-meter{height:12px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;overflow:hidden;margin-top:8px}
+#au-meter i{display:block;height:100%;width:0;background:var(--ok);transition:width .06s linear}
+#au-meter i.hot{background:var(--accent)}
 </style>
 </head>
 <body>
@@ -177,6 +180,30 @@ section{scroll-margin-top:170px}
   </div>
 </section>
 
+
+
+<section class="wide" id="audsec">
+  <h2>Monitor y grabadora de audio (experimental)</h2>
+  <div class="d sd">El S-1 manda su audio por el mismo cable USB-C. Aquí puedes oírlo a través de la tablet (por ejemplo con cascos Bluetooth) y grabarlo. El manual indica que Android no está garantizado, así que esto es una prueba. Usa cascos: si usas el altavoz de la tablet con otra entrada puede haber acoples.</div>
+  <div class="row">
+    <button id="au-scan">1. Buscar entradas</button>
+    <select id="au-in" aria-label="Entrada de audio"><option value="">Entrada de audio</option></select>
+    <select id="au-out" aria-label="Salida de audio" hidden><option value="">Salida de audio (predeterminada)</option></select>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <button id="au-go" class="pri">2. Activar entrada</button>
+    <label class="chk"><input type="checkbox" id="au-mon" checked> Oír por la tablet</label>
+    <label class="chk" style="flex:1 1 200px"><span style="min-width:70px">Volumen <b id="au-vv" style="color:var(--accent)"></b></span><input type="range" id="au-vol" min="0" max="100" style="flex:1"></label>
+  </div>
+  <div id="au-meter"><i></i></div>
+  <div class="row" style="margin-top:10px">
+    <button id="au-rec">Grabar</button>
+    <span class="mono" id="au-time" style="min-width:60px">0:00</span>
+    <button id="au-wav" hidden>Guardar WAV</button>
+    <button id="au-raw" hidden>Guardar original</button>
+  </div>
+  <div class="hint" id="au-msg">Pulsa «Buscar entradas», acepta el permiso del micrófono y elige el S-1 si aparece en la lista.</div>
+</section>
 
 <section class="wide" id="seqsec">
   <h2>Secuenciador aleatorio</h2>
@@ -280,6 +307,9 @@ section{scroll-margin-top:170px}
     <label class="chk">Categoría <select id="libcat"><option value="">Todas</option><option>SH-101</option><option>Techno</option><option>Ambient</option><option>Drone</option></select></label>
     <span class="grow"></span>
   </div>
+  <h2 style="margin-top:14px">Combos: sonido + patrón</h2>
+  <div class="hint" style="margin-top:0">Cada combo carga a la vez el sonido en el S-1 y el patrón en el secuenciador. Con Cargar y reproducir empieza a sonar al momento.</div>
+  <div id="libc"></div>
   <h2 style="margin-top:14px">Patches</h2>
   <div id="libp"></div>
   <h2 style="margin-top:14px">Patrones</h2>
@@ -1053,9 +1083,42 @@ const LIBS=[
  mkSeq('Drone','Latido','Una sola nota que late como un pulso lento y grave.',{root:0,base:1,bpm:48,res:12,scale:'Frigia'},
   [[0,X,.9],0,[0,L,.9],0, [0,X,.9],0,[0,L,.9],0])
 ];
+const COMBOS=[
+ {cat:"Techno",patch:"Sub rumble",seq:"Bajo a contratiempo",why:"Base clásica de techno: bajo grave que entra entre los golpes del bombo."},
+ {cat:"Techno",patch:"Acid squelch",seq:"Acid 16",why:"Línea acid con saltos de octava y acentos: es el combo acid de referencia."},
+ {cat:"Techno",patch:"Acid squelch",seq:"Acid sincopado",why:"El mismo sonido acid con un ritmo más quebrado."},
+ {cat:"Techno",patch:"Dub stab",seq:"Stab dub",why:"Acordes secos con eco, estilo dub techno."},
+ {cat:"Techno",patch:"Pluck bass",seq:"Bajo rodante 16avos",why:"Bajo percusivo que llena todos los 16avos."},
+ {cat:"Techno",patch:"Pulse bass",seq:"Minimal 8",why:"Bajo directo para un patrón austero y repetitivo."},
+ {cat:"Techno",patch:"Kick sub",seq:"Pulso 4x4",why:"Una nota grave en cada negra que refuerza el bombo."},
+ {cat:"Techno",patch:"Resonant blip",seq:"Arpegio hipnótico",why:"Blips cortos y resonantes sobre un arpegio que gira."},
+ {cat:"Techno",patch:"Hoover rave",seq:"Arpegio frigio",why:"Lead ancho y agresivo sobre una melodía oscura."},
+ {cat:"Techno",patch:"Pluck bass",seq:"Industrial",why:"Bajo seco para un patrón sucio de semitonos."},
+ {cat:"SH-101",patch:"Sub bass 101",seq:"Bajo sub corto",why:"El bajo clásico del 101 con un patrón de negras y corcheas."},
+ {cat:"SH-101",patch:"Lead mono clásico",seq:"Lead de dos compases",why:"Lead con glide sobre una melodía cantable."},
+ {cat:"SH-101",patch:"PWM lead",seq:"Lead de dos compases",why:"El mismo patrón con un timbre más cálido y móvil."},
+ {cat:"SH-101",patch:"Bleep corto",seq:"Arpegio 101",why:"Arpegio ascendente de 16avos con notas secas, tipo synth-pop."},
+ {cat:"Ambient",patch:"Glass bells",seq:"Campanas dispersas",why:"Notas separadas con campanas cristalinas y mucho eco."},
+ {cat:"Ambient",patch:"Slow pad",seq:"Pad que respira",why:"Dos notas que se alternan despacio bajo un pad lento."},
+ {cat:"Ambient",patch:"Soft pluck",seq:"Arpegio lento",why:"Notas suaves y largas en pentatónica, con delay."},
+ {cat:"Ambient",patch:"Shimmer",seq:"Deriva",why:"Notas lejanas con brillo agudo y reverb enorme."},
+ {cat:"Drone",patch:"Deep drone",seq:"Drone en quinta",why:"Grave continuo que alterna raíz y quinta muy despacio."},
+ {cat:"Drone",patch:"Dark wide drone",seq:"Drone con tensión",why:"Drone ancho con un semitono que inquieta."},
+ {cat:"Drone",patch:"Sub drone puro",seq:"Latido",why:"Sub limpio con un pulso lento."},
+ {cat:"Drone",patch:"Drone que respira",seq:"Drone en quinta",why:"Respiración del filtro sobre raíz y quinta."}
+];
+const comboFor=(kind,name)=>COMBOS.filter(c=>c[kind]===name).map(c=>kind==='patch'?c.seq:c.patch);
+function hintOf(kind,name){const l=comboFor(kind,name);return l.length?' Combina con: '+l.join(', ')+'.':''}
+const comboPatch=n=>LIBP.find(x=>x.name===n),comboSeq=n=>LIBS.find(x=>x.name===n);
+function loadCombo(c,play){
+  const p=comboPatch(c.patch),q=comboSeq(c.seq);if(!p||!q)return;
+  loadState(Object.assign(defaults(),p.data));loadSeq(q.seq);
+  if(play&&!running)startSeq();
+  seqMsg('Combo «'+c.patch+' + '+c.seq+'» cargado.');
+}
 let libCat='';
 function renderLib(){
-  const lp=$('libp'),ls=$('libs');lp.innerHTML='';ls.innerHTML='';
+  const lp=$('libp'),ls=$('libs'),lc=$('libc');lp.innerHTML='';ls.innerHTML='';lc.innerHTML='';
   const row=(item,acts,badge)=>{
     const r=document.createElement('div');r.className='pt';
     const l=document.createElement('div');const t=document.createElement('b');t.textContent=item.name;l.appendChild(t);
@@ -1065,14 +1128,20 @@ function renderLib(){
     acts.forEach(([txt,fn,cls])=>{const b=document.createElement('button');b.textContent=txt;b.onclick=fn;if(cls)b.className=cls;a.appendChild(b)});
     r.append(l,d,a);return r;
   };
+  COMBOS.filter(c=>!libCat||c.cat===libCat).forEach(c=>{
+    lc.appendChild(row({name:c.patch+' + '+c.seq,cat:c.cat,desc:c.why},[
+      ['Cargar combo',()=>loadCombo(c,false),'pri'],
+      ['Cargar y reproducir',()=>loadCombo(c,true)]
+    ]));
+  });
   LIBP.filter(p=>!libCat||p.cat===libCat).forEach(p=>{
-    lp.appendChild(row(p,[
+    lp.appendChild(row({...p,desc:p.desc+hintOf('patch',p.name)},[
       ['Cargar',()=>{loadState(Object.assign(defaults(),p.data));pmsg('Cargado «'+p.name+'».')},'pri'],
       ['Guardar en mis patches',()=>{P.push({id:uid(),name:p.name,note:p.desc,data:Object.assign(defaults(),p.data),seq:null,t:Date.now()});saveP();renderPatches();pmsg('«'+p.name+'» guardado en Mis patches.')}]
     ]));
   });
   LIBS.filter(s=>!libCat||s.cat===libCat).forEach(s=>{
-    ls.appendChild(row(s,[
+    ls.appendChild(row({...s,desc:s.desc+hintOf('seq',s.name)},[
       ['Cargar',()=>{loadSeq(s.seq);seqMsg('Patrón «'+s.name+'» cargado.')},'pri'],
       ['Cargar y reproducir',()=>{loadSeq(s.seq);if(!running)startSeq()}]
     ]));
@@ -1464,8 +1533,108 @@ $('ls-sel').onchange=()=>{lsI=+$('ls-sel').value;lsK=-1;lsRender()};
 $('ls-start').onclick=()=>{lsK=0;lsApplyTo(0);lsRender();$('learnsec').scrollIntoView({block:'start',behavior:'smooth'})};
 lsRender();
 
+
+// ---- Monitor y grabadora de audio ----
+(function(){
+  let ctx=null,stream=null,gain=null,an=null,rec=null,chunks=[],raf=0,blob=null,recT=0,timer=null;
+  const msg=t=>{$('au-msg').textContent=t};
+  const vol=()=>($('au-mon').checked?+$('au-vol').value/100:0);
+  $('au-vol').value=cfg.auVol===undefined?80:cfg.auVol;$('au-vv').textContent=$('au-vol').value+'%';
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){msg('Este navegador no permite capturar audio.');$('au-scan').disabled=$('au-go').disabled=true;return}
+  async function scan(){
+    try{const t=await navigator.mediaDevices.getUserMedia({audio:true});t.getTracks().forEach(x=>x.stop())}
+    catch(e){msg('No se pudo acceder al audio: '+(e&&e.name||'error')+'. Acepta el permiso del micrófono en Chrome.');return}
+    const ds=await navigator.mediaDevices.enumerateDevices();
+    const ins=ds.filter(d=>d.kind==='audioinput'),outs=ds.filter(d=>d.kind==='audiooutput');
+    const si=$('au-in'),so=$('au-out'),prev=si.value;
+    si.innerHTML='';so.innerHTML='';
+    si.add(new Option('Entrada predeterminada',''));
+    ins.forEach((d,i)=>si.add(new Option(d.label||('Entrada '+(i+1)),d.deviceId)));
+    const best=ins.find(d=>/S-1|AIRA|Roland/i.test(d.label));
+    si.value=best?best.deviceId:(ins.some(d=>d.deviceId===prev)?prev:'');
+    so.add(new Option('Salida de audio (predeterminada)',''));
+    outs.forEach((d,i)=>so.add(new Option(d.label||('Salida '+(i+1)),d.deviceId)));
+    so.hidden=outs.length<2;
+    msg('Entradas encontradas: '+(ins.map(d=>d.label||'sin nombre').join(' · ')||'ninguna')+'.'+(best?' Seleccionado el S-1.':' El S-1 no aparece como entrada de audio: comprueba el cable o prueba con otra app de grabación.'));
+  }
+  $('au-scan').onclick=scan;
+  function meter(){
+    if(!an)return;
+    const a=new Uint8Array(an.fftSize);an.getByteTimeDomainData(a);
+    let pk=0;for(let i=0;i<a.length;i++)pk=Math.max(pk,Math.abs(a[i]-128));
+    const lv=Math.min(1,pk/128*1.4),b=document.querySelector('#au-meter i');
+    b.style.width=(lv*100)+'%';b.classList.toggle('hot',lv>.9);
+    raf=requestAnimationFrame(meter);
+  }
+  async function start(){
+    const id=$('au-in').value;
+    try{
+      stream=await navigator.mediaDevices.getUserMedia({audio:Object.assign({echoCancellation:false,noiseSuppression:false,autoGainControl:false,channelCount:{ideal:2}},id?{deviceId:{exact:id}}:{})});
+    }catch(e){msg('No se pudo abrir la entrada: '+(e&&e.name||'error'));return}
+    ctx=new(window.AudioContext||window.webkitAudioContext)({latencyHint:'interactive'});
+    const o=$('au-out').value;if(o&&ctx.setSinkId){try{await ctx.setSinkId(o)}catch(e){}}
+    const src=ctx.createMediaStreamSource(stream);
+    gain=ctx.createGain();gain.gain.value=vol();an=ctx.createAnalyser();an.fftSize=1024;
+    src.connect(gain);gain.connect(ctx.destination);src.connect(an);
+    const t=stream.getAudioTracks()[0],st=t.getSettings?t.getSettings():{};
+    $('au-go').textContent='Detener entrada';$('au-go').classList.remove('pri');
+    const lat=Math.round(((ctx.baseLatency||0)+(ctx.outputLatency||0))*1000);
+    msg('Entrada activa: '+(t.label||'sin nombre')+(st.sampleRate?' · '+st.sampleRate+' Hz':'')+(st.channelCount?' · '+st.channelCount+' canal(es)':'')+(lat?' · latencia del navegador ≈ '+lat+' ms':'')+'. Si no oyes nada, comprueba que Android envía el sonido a tus cascos y no al S-1.');
+    raf=requestAnimationFrame(meter);
+  }
+  function stop(){
+    if(rec&&rec.state==='recording')rec.stop();
+    cancelAnimationFrame(raf);an=null;
+    if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
+    if(ctx){ctx.close().catch(()=>{});ctx=null}
+    document.querySelector('#au-meter i').style.width='0';
+    $('au-go').textContent='2. Activar entrada';$('au-go').classList.add('pri');
+  }
+  $('au-go').onclick=()=>stream?stop():start();
+  $('au-mon').onchange=()=>{if(gain)gain.gain.value=vol()};
+  $('au-vol').oninput=()=>{$('au-vv').textContent=$('au-vol').value+'%';cfg.auVol=+$('au-vol').value;saveCfg();if(gain)gain.gain.value=vol()};
+  $('au-vol').dispatchEvent(new Event('input'));
+  const fmt=n=>Math.floor(n/60)+':'+String(Math.floor(n%60)).padStart(2,'0');
+  $('au-rec').onclick=()=>{
+    if(rec&&rec.state==='recording'){rec.stop();return}
+    if(!stream){msg('Activa primero la entrada.');return}
+    if(!window.MediaRecorder){msg('Este navegador no puede grabar audio.');return}
+    chunks=[];blob=null;$('au-wav').hidden=$('au-raw').hidden=true;
+    const mt=['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus','audio/mp4'].find(m=>MediaRecorder.isTypeSupported(m));
+    rec=new MediaRecorder(stream,mt?{mimeType:mt}:undefined);
+    rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};
+    rec.onstop=()=>{
+      clearInterval(timer);blob=new Blob(chunks,{type:rec.mimeType||'audio/webm'});
+      $('au-rec').textContent='Grabar';$('au-rec').classList.remove('on');
+      if(blob.size){$('au-wav').hidden=$('au-raw').hidden=false;msg('Grabación lista ('+fmt((Date.now()-recT)/1000)+'). Guárdala como WAV o en su formato original.')}
+      else msg('La grabación está vacía.');
+    };
+    rec.start(1000);recT=Date.now();$('au-rec').textContent='Parar';$('au-rec').classList.add('on');
+    timer=setInterval(()=>{$('au-time').textContent=fmt((Date.now()-recT)/1000)},250);
+  };
+  const stamp=()=>{const d=new Date(),p=n=>String(n).padStart(2,'0');return d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds())};
+  $('au-raw').onclick=()=>{if(!blob)return;const ext=/ogg/.test(blob.type)?'ogg':/mp4/.test(blob.type)?'m4a':'webm';dl(blob,'s1-grabacion-'+stamp()+'.'+ext,blob.type)};
+  function wav(ab){
+    const ch=ab.numberOfChannels,n=ab.length,sr=ab.sampleRate,buf=new ArrayBuffer(44+n*ch*2),v=new DataView(buf);
+    const w=(o,t)=>{for(let i=0;i<t.length;i++)v.setUint8(o+i,t.charCodeAt(i))};
+    w(0,'RIFF');v.setUint32(4,36+n*ch*2,true);w(8,'WAVE');w(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,ch,true);
+    v.setUint32(24,sr,true);v.setUint32(28,sr*ch*2,true);v.setUint16(32,ch*2,true);v.setUint16(34,16,true);w(36,'data');v.setUint32(40,n*ch*2,true);
+    const d=[];for(let c=0;c<ch;c++)d.push(ab.getChannelData(c));
+    let o=44;for(let i=0;i<n;i++)for(let c=0;c<ch;c++){const x=Math.max(-1,Math.min(1,d[c][i]));v.setInt16(o,x<0?x*0x8000:x*0x7FFF,true);o+=2}
+    return new Uint8Array(buf);
+  }
+  $('au-wav').onclick=async()=>{
+    if(!blob)return;msg('Convirtiendo a WAV…');
+    try{
+      const ac=new(window.AudioContext||window.webkitAudioContext)();
+      const ab=await ac.decodeAudioData(await blob.arrayBuffer());ac.close().catch(()=>{});
+      dl(wav(ab),'s1-grabacion-'+stamp()+'.wav','audio/wav');msg('WAV guardado.');
+    }catch(e){msg('No se pudo convertir. Guarda el original.')}
+  };
+})();
+
 // ---- Navegación, instalación y PWA ----
-[['Sonido','cols'],['XY','xysec'],['Arp','arpsec'],['Seq','seqsec'],['Cadena','chainsec'],['Patches','patsec'],['Biblioteca','libsec'],['Aprender','learnsec']].forEach(([t,id])=>{
+[['Sonido','cols'],['XY','xysec'],['Arp','arpsec'],['Audio','audsec'],['Seq','seqsec'],['Cadena','chainsec'],['Patches','patsec'],['Biblioteca','libsec'],['Aprender','learnsec']].forEach(([t,id])=>{
   const b=document.createElement('button');b.textContent=t;b.onclick=()=>document.getElementById(id).scrollIntoView({block:'start',behavior:'smooth'});
   $('nav').appendChild(b);
 });

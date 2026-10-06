@@ -1,0 +1,16 @@
+{
+  "name": "S-1 Editor",
+  "short_name": "S-1 Editor",
+  "description": "Editor MIDI para el Roland S-1 con secuenciador, arpegiador y biblioteca de sonidos.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "any",
+  "background_color": "#101112",
+  "theme_color": "#101112",
+  "icons": [
+    {"src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ]
+}
